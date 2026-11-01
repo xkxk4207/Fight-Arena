@@ -785,7 +785,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
             const used = b.orbit.map((w) => w.slot);
             let slot = 0; while (used.includes(slot)) slot++;
             const knife = Math.random() < ORB_KNIFE_P;
-            b.orbit.push({ slot, knife, dmg: knife ? 10 : 5, cd: {} });
+            b.orbit.push({ slot, knife, dmg: knife ? 25 : 15, cd: {} });
           }
         } else {
           b.orbT = 0;
