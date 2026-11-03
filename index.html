@@ -43,6 +43,7 @@ button.cta:active { transform: translateY(2px); box-shadow: 0 2px 0 #b86400; }
 h1, h2 { margin: 0; font-family: var(--f-display); font-weight: 400; text-wrap: balance; }
 
 .set-btn { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 20; display: inline-flex; align-items: center; gap: 6px; background: var(--bg); padding: 0 14px; }
+.online { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 58px); right: max(14px, env(safe-area-inset-right, 0px)); z-index: 19; font-size: 13px; font-weight: 600; color: #3a4a66; pointer-events: none; }
 .set-btn svg { width: 18px; height: 18px; flex: none; }
 .set-panel { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 60px); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 20; width: min(300px, calc(100vw - 24px)); display: grid; gap: 16px; padding: 18px; border-radius: 16px; background: var(--bg); border: 2px solid var(--line); box-shadow: 0 6px 0 var(--line); }
 .set-panel h2 { font-size: 22px; }
@@ -144,6 +145,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/></svg>
   설정
 </button>
+<div class="online" id="online" aria-live="polite">참가 중 1명</div>
 <div class="set-panel" id="setPanel" role="dialog" aria-label="설정" hidden>
   <h2>설정</h2>
   <div class="set-row">
@@ -1539,6 +1541,19 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   });
   $('#adminReset').addEventListener('click', () => { CHARS.forEach((c, i) => { dmgCfg[i] = dmgDefault(i); }); saveDmg(); syncAdmin(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePw(); closeAdmin(); } });
+
+  // 지금 이 페이지를 열어 둔 사람 수(실시간). 연결이 안 되면 나 혼자로 표시한다.
+  (async () => {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      const room = await window.claude.use('room');
+      if (!room) return;
+      const el = $('#online');
+      const show = () => { const n = room.peers().filter((q) => q.kind === 'viewer').length; el.textContent = '참가 중 ' + Math.max(1, n) + '명'; };
+      room.onPeers(show, () => { el.textContent = '참가 중 1명'; });
+      show();
+    } catch (e) {}
+  })();
 
   buildSlots();
   renderSel();
