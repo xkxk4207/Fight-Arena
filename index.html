@@ -182,7 +182,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   <section class="screen" id="select" aria-label="캐릭터 선택">
     <div class="sel-head">
       <h1>파이트 아레나</h1>
-      <p>인원을 고르고 싸울 캐릭터를 정하세요. 모두 능력이 없는 더미입니다.</p>
+      <p>인원을 고르고 싸울 캐릭터를 정하세요. 모두 다른 능력을 가지고 있습니다.</p>
     </div>
     <div class="slots" id="slots" data-n="2"></div>
     <div class="grid" id="grid" role="group" aria-label="캐릭터 목록"></div>
@@ -1016,7 +1016,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
           }
         } else {
         if (hk.end) {
-          b.dash = { pts: hk.pts, i: 1, ux: hk.dx, uy: hk.dy };
+          b.dash = { pts: hk.pts, i: 1, ux: hk.dx, uy: hk.dy, tip: { x: hk.x, y: hk.y, dx: hk.dx, dy: hk.dy } };
           b.hook = null; b.dashing = true;
         }
         }
@@ -1263,8 +1263,9 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
       ctx.strokeStyle = '#000'; ctx.lineWidth = 13; ctx.stroke();
       ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = 8; ctx.setLineDash([12, 4]); ctx.stroke();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.setLineDash([6, 10]); ctx.stroke(); ctx.setLineDash([]);
-      if (b.hook) {
-        const hk = b.hook, a = Math.atan2(hk.dy, hk.dx);
+      const hk = b.hook || (b.dash && b.dash.tip);
+      if (hk) {
+        const a = Math.atan2(hk.dy, hk.dx);
         ctx.translate(hk.x, hk.y); ctx.rotate(a);
         ctx.fillStyle = '#2a2a2a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
         ctx.scale(1.5, 1.5);
