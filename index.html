@@ -620,7 +620,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   let cd = [], freeze = null, shots = [], blasts = [], blocks = [], tnts = [], booms = [], rings = [], bolts = [], hitstop = 0;
   const GAUGE_HIT = 5;
   const LEAP_EVERY = 5, LEAP_T = 0.75, LEAP_R = 130, LEAP_DMG = 30;
-  const STORM_EVERY = 5, STORM_WARN = 0.9, STORM_R = 80, STORM_DMG = 20;
+  const STORM_EVERY = 1.5, STORM_WARN = 0.9, STORM_R = 80, STORM_DMG = 20;
   const CHAIN_EVERY = 7, CHAIN_BOUNCES = 5, CHAIN_SPEED = 2200, DASH_SPEED = 1500, HARPOON_DMG = 25, PULL_WALL_DMG = 5, CHAIN_DMG = 5, DASH_DMG = 20;
   const TNT_EVERY = 10, TNT_FUSE = 1, TNT_DMG = 25, TNT_R = 150;
   const BLOCK_EVERY = 5, BLOCK_S = 64, BLOCK_DMG = 15, BLOCK_TOUCHES = 2;
@@ -679,6 +679,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   }
   // 게이지가 남아 있으면 체력 대신 게이지가 줄고, 게이지가 0이 되면 그때부터 체력이 깎인다
   function takeDamage(b, dmg) {
+    if (b.dashing && dmg > 0) dmg = 5; // 준장이 사슬 궤도로 날아가는 동안엔 무슨 대미지든 5만 받는다
     if (b.gauge > 0) { if (dmg > 0) b.gauge = Math.max(0, b.gauge - GAUGE_HIT); }
     else b.hp = Math.max(0, b.hp - dmg);
   }
@@ -696,8 +697,11 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   }
 
   function chainPts(b) {
+    if (b.dash) {
+      if (b.hook && b.hook.reel) return [{ x: b.x, y: b.y }].concat(b.dash.pts.slice(b.dash.i, b.hook.pts.length), [{ x: b.hook.x, y: b.hook.y }]);
+      return [{ x: b.x, y: b.y }].concat(b.dash.pts.slice(b.dash.i));
+    }
     if (b.hook) return [{ x: b.x, y: b.y }].concat(b.hook.pts.slice(1), [{ x: b.hook.x, y: b.hook.y }]);
-    if (b.dash) return [{ x: b.x, y: b.y }].concat(b.dash.pts.slice(b.dash.i));
     return null;
   }
   // 두 공의 접촉 판정(원-원, 사각형-원, 사각형-사각형). 법선은 A→B 방향.
@@ -778,7 +782,8 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
         const ct = contact(A, B);
         if (!ct) continue;
         const nx = ct.nx, ny = ct.ny, ov = ct.ov;
-        const fa = (A.dashing || A.pulled) && !(B.dashing || B.pulled) ? 0 : 1, fb = (B.dashing || B.pulled) && !(A.dashing || A.pulled) ? 0 : 1, fs = fa + fb || 1;
+        const fixA = A.dashing || A.pulled || A.hook, fixB = B.dashing || B.pulled || B.hook;
+        const fa = fixA && !fixB ? 0 : 1, fb = fixB && !fixA ? 0 : 1, fs = fa + fb || 1;
         A.x -= nx * ov * fa / fs; A.y -= ny * ov * fa / fs; B.x += nx * ov * fb / fs; B.y += ny * ov * fb / fs;
         const vn = (A.vx - B.vx) * nx + (A.vy - B.vy) * ny;
         if (vn > 0) { A.vx -= vn * nx; A.vy -= vn * ny; B.vx += vn * nx; B.vy += vn * ny; }
@@ -811,7 +816,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     // 의지의 영혼: 5초마다 하트를 쏜다. 하트는 벽에서 한 번 튕기고, 두 번째 벽에서 사라진다.
     if (!over) {
       for (const b of balls) {
-        if (!b.c.soul || !b.alive) continue;
+        if (!b.c.soul || !b.alive || b.pulled) continue;
         b.fireT += dt;
         if (b.fireT < HEART_EVERY) continue;
         b.fireT -= HEART_EVERY;
@@ -854,7 +859,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     // 의지의 영혼: 5초마다 둘레를 도는 나무막대기(대미지 5)를 소환, 10%는 칼(대미지 10). 최대 5개, 5개가 찬 뒤 15초 지나면 칼이 사라진다.
     if (!over) {
       for (const b of balls) {
-        if (!b.c.soul || !b.alive) continue;
+        if (!b.c.soul || !b.alive || b.pulled) continue;
         b.orbA += ORB_W * dt;
         if (b.orbit.length < ORB_MAX) {
           b.fullT = 0;
@@ -893,7 +898,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     // 스티브: 15초마다 잔디블록을 설치. 적이 닿으면 튕기며 대미지 15, 두 번 닿으면 사라진다.
     if (!over) {
       for (const b of balls) {
-        if (!b.c.blocks || !b.alive) continue;
+        if (!b.c.blocks || !b.alive || b.pulled) continue;
         b.blockT += dt;
         if (b.blockT >= BLOCK_EVERY) {
           b.blockT -= BLOCK_EVERY;
@@ -936,7 +941,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     // 스티브: 10초마다 TNT 설치. 적이 닿으면 1초 뒤 폭발(범위 안 적에게 대미지 + 밀려남)
     if (!over) {
       for (const b of balls) {
-        if (!b.c.blocks || !b.alive) continue;
+        if (!b.c.blocks || !b.alive || b.pulled) continue;
         b.tntT += dt;
         if (b.tntT >= TNT_EVERY) {
           b.tntT -= TNT_EVERY;
@@ -980,8 +985,18 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
       const u = l2 > 0 ? clamp(((px - ax) * vx + (py - ay) * vy) / l2, 0, 1) : 0;
       return Math.hypot(px - (ax + vx * u), py - (ay + vy * u));
     };
+    // 작살 끝에 닿은 적을 꿰어 끌어오기 시작: 대미지 25
+    const grab = (b, hk, o) => {
+      hk.reel = o; o.pulled = true; o.vx = 0; o.vy = 0;
+      takeDamage(o, HARPOON_DMG); o.flash = 0.5;
+      if (o.gaugeMax) missText(o);
+      rings.push({ x: hk.x, y: hk.y, t: 0 });
+      if (!reduced) shake = Math.max(shake, 0.9); // 멈칫 없이 바로 끌어온다
+      sfx(1);
+    };
     for (const b of balls) {
       if (!b.c.chain) continue;
+      if (b.pulled) continue;
       if (over || !b.alive) { if (b.hook && b.hook.reel) b.hook.reel.pulled = false; b.hook = null; b.dash = null; b.dashing = false; b.trail = []; continue; }
       if (!b.hook && !b.dash) {
         b.chainT += dt;
@@ -998,7 +1013,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
       const hk = b.hook;
       if (hk) {
         let mv = CHAIN_SPEED * dt;
-        while (mv > 0 && !hk.end) {
+        while (mv > 0 && !hk.end && !hk.reel) {
           const st = Math.min(16, mv); mv -= st;
           hk.x += hk.dx * st; hk.y += hk.dy * st;
           let wl = false;
@@ -1016,18 +1031,16 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
           if (bk) { blockHit(bk); hk.pts.push({ x: hk.x, y: hk.y }); hk.end = true; }
           // 작살 끝: 닿은 적을 꿰어 끌고 오며 대미지 25
           for (const o of balls) {
-            if (o === b || !o.alive || hk.reel) continue;
-            if (Math.hypot(o.x - hk.x, o.y - hk.y) < R + 8) {
-              hk.reel = o; o.pulled = true; o.vx = 0; o.vy = 0;
-              takeDamage(o, HARPOON_DMG); o.flash = 0.5;
-              if (o.gaugeMax) missText(o);
-              rings.push({ x: hk.x, y: hk.y, t: 0 });
-              hitstop = 0.1; if (!reduced) shake = Math.max(shake, 0.9);
-              sfx(1);
-              break;
-            }
+            if (o === b || !o.alive || o.pulled || hk.reel) continue;
+            if (Math.hypot(o.x - hk.x, o.y - hk.y) < R + 8) { grab(b, hk, o); break; }
           }
           if (hk.reel) break;
+        }
+        if (hk.end && !hk.reel) {
+          for (const o of balls) {
+            if (o === b || !o.alive || o.pulled) continue;
+            if (Math.hypot(o.x - hk.x, o.y - hk.y) < R + 8) { grab(b, hk, o); break; }
+          }
         }
         if (hk.reel) {
           // 끌어오기: 작살이 사슬 궤도를 거슬러 돌아오고 적이 함께 끌려온다
@@ -1050,7 +1063,9 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
               } else done = true;
             }
             else { hk.x += dx / d * mv; hk.y += dy / d * mv; mv = 0; }
-            if (Math.hypot(hk.x - b.x, hk.y - b.y) <= R * 2 + 4) done = true;
+            // 사슬 궤도를 끝까지(마지막 구간에서 준장 앞까지) 따라 끌려온다
+            const near = Math.hypot(hk.x - b.x, hk.y - b.y) <= R * 2 + 4;
+            if (b.dash ? near : (hk.pts.length <= 1 && near)) done = true;
           }
           if (o.alive) { o.x = clamp(hk.x, R, W - R); o.y = clamp(hk.y, R, H - R); o.vx = 0; o.vy = 0; }
           if (done) {
@@ -1062,14 +1077,13 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
               if (!reduced) shake = Math.max(shake, 0.5);
               sfx(0.8);
             }
-            b.hook = null; b.dash = null; b.dashing = false;
-            continue;
+            b.hook = null;
           }
         } else {
-        if (hk.end) {
-          b.dash = { pts: hk.pts, i: 1, ux: hk.dx, uy: hk.dy, tip: { x: hk.x, y: hk.y, dx: hk.dx, dy: hk.dy } };
-          b.hook = null; b.dashing = true;
-        }
+          if (hk.end && !b.dash) {
+            b.dash = { pts: hk.pts.slice(), i: 1, ux: hk.dx, uy: hk.dy, tip: { x: hk.x, y: hk.y, dx: hk.dx, dy: hk.dy } };
+            b.dashing = true;
+          }
         }
       }
       // 사슬: 지나는 길에 닿은 적에게 대미지 5 (0.5초마다)
@@ -1105,13 +1119,14 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
           b.trail = [];
           b.vx = ds.ux * SPEED; b.vy = ds.uy * SPEED;
           b.dash = null; b.dashing = false;
+          if (b.hook && !b.hook.reel) b.hook = null;
         }
       }
     }
-    // 먹구름: 5초마다 무작위 적 근처에 낙뢰 표시를 하고, 0.9초 뒤 번개가 떨어져 범위 안 적에게 20.
+    // 지기: 1.5초마다 무작위 적 근처에 낙뢰 표시를 하고, 0.9초 뒤 번개가 떨어져 범위 안 적에게 20.
     if (!over) {
       for (const b of balls) {
-        if (!b.c.storm || !b.alive) continue;
+        if (!b.c.storm || !b.alive || b.pulled) continue;
         b.stormT += dt;
         if (b.stormT < STORM_EVERY) continue;
         b.stormT -= STORM_EVERY;
@@ -1144,6 +1159,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     for (const b of balls) {
       if (!b.c.leap) continue;
       if (over || !b.alive) { b.leap = null; continue; }
+      if (b.pulled) continue;
       if (!b.leap) {
         b.leapT += dt;
         if (b.leapT < LEAP_EVERY) continue;
@@ -1188,7 +1204,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
     if (!over) {
       for (const o of balls) o.boneCd = Math.max(0, o.boneCd - dt);
       for (const b of balls) {
-        if (!b.c.bones || !b.alive) continue;
+        if (!b.c.bones || !b.alive || b.pulled) continue;
         b.boneAng += BONE_W * dt;
         for (let k = 0; k < BONES; k++) {
           const a = b.boneAng + k * Math.PI * 2 / BONES;
