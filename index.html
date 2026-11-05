@@ -631,7 +631,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   const GAUGE_HIT = 5;
   const PORTAL_EVERY = 10, PORTAL_R = 46, WAVE_T = 5, WAVE_SPD = 2600 / 330, WAVE_SIZE = 0.7, WAVE_DMG = 30;
   const LEAP_EVERY = 5, LEAP_T = 0.75, LEAP_R = 130, LEAP_DMG = 30;
-  const STORM_EVERY = 1.5, STORM_WARN = 0.9, STORM_R = 80, STORM_DMG = 20;
+  const STORM_EVERY = 0.5, STORM_WARN = 0.9, STORM_R = 80, STORM_DMG = 10;
   const CHAIN_EVERY = 7, CHAIN_BOUNCES = 5, CHAIN_SPEED = 2200, DASH_SPEED = 1500, HARPOON_DMG = 25, PULL_WALL_DMG = 5, CHAIN_DMG = 5, DASH_DMG = 20;
   const TNT_EVERY = 10, TNT_FUSE = 1, TNT_DMG = 25, TNT_R = 150;
   const BLOCK_EVERY = 5, BLOCK_S = 64, BLOCK_DMG = 15, BLOCK_TOUCHES = 2;
@@ -690,6 +690,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
   }
   // 게이지가 남아 있으면 체력 대신 게이지가 줄고, 게이지가 0이 되면 그때부터 체력이 깎인다
   function takeDamage(b, dmg) {
+    if (b.waveT > 0) return; // 지메는 변신한 동안 대미지를 받지 않는다
     if (b.dashing && dmg > 0) dmg = 5; // 준장이 사슬 궤도로 날아가는 동안엔 무슨 대미지든 5만 받는다
     if (b.gauge > 0) { if (dmg > 0) b.gauge = Math.max(0, b.gauge - GAUGE_HIT); }
     else b.hp = Math.max(0, b.hp - dmg);
@@ -1134,7 +1135,7 @@ canvas#arena { display: block; width: 100%; aspect-ratio: 3 / 4; }
         }
       }
     }
-    // 지기: 1.5초마다 무작위 적 근처에 낙뢰 표시를 하고, 0.9초 뒤 번개가 떨어져 범위 안 적에게 20.
+    // 지기: 0.5초마다 무작위 적 근처에 낙뢰 표시를 하고, 0.9초 뒤 번개가 떨어져 범위 안 적에게 20.
     if (!over) {
       for (const b of balls) {
         if (!b.c.storm || !b.alive || b.pulled) continue;
